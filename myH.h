@@ -21,7 +21,9 @@ public:
 
     void UDPServer();
 
-    std::string UDPClient(char*);
+    void FuckTheCJ(std::string);
+
+    std::string UDPClient(char *);
 
     HANDLE hCom;
     BYTE lpOutBuffer[1500] = {0};

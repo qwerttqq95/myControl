@@ -40,9 +40,9 @@ my::my() {
     }
     SetupComm(hCom, 2048, 2048); //输入缓冲区和输出缓冲区的大小都是1024
     COMMTIMEOUTS TimeOuts; //设定读超时
-    TimeOuts.ReadIntervalTimeout = 500;
-    TimeOuts.ReadTotalTimeoutMultiplier = 2000;
-    TimeOuts.ReadTotalTimeoutConstant = 2000; //设定写超时
+    TimeOuts.ReadIntervalTimeout = MAXDWORD;
+    TimeOuts.ReadTotalTimeoutMultiplier = 0;
+    TimeOuts.ReadTotalTimeoutConstant = 0;
     TimeOuts.WriteTotalTimeoutMultiplier = 500;
     TimeOuts.WriteTotalTimeoutConstant = 500;
     SetCommTimeouts(hCom, &TimeOuts); //设置超时
@@ -77,33 +77,87 @@ void my::myread() {
     char str[1000];
     DWORD wCount;//读取的字节数
     BOOL bReadStat;
-
+    string output;
+    vector<string> map;
+    char a = 0x0d;
+    char b = 0x0a;
+    string s;
+    s.push_back(a);
+    s.push_back(b);
     while (1) {
-        cout << "Reading...\n";
-        bReadStat = ReadFile(hCom, str, 200, &wCount, NULL);
+        bReadStat = ReadFile(hCom, str, 500, &wCount, NULL);
         if (!bReadStat) {
             cout << "读串口失败!";
             return;
         }
         if (wCount > 0) {
-            string output;
             char temp[4] = {0};
             for (int i = 0; i < wCount; i++) {
                 sprintf(temp, "%02X", (BYTE) str[i]);
-                output += temp;
+//                output += temp;
+                map.push_back(temp);
             }
-            char a = 0x0d;
-            char b = 0x0a;
-            string s;
-            s.push_back(a);
-            s.push_back(b);
-            string rec = "cmd=1001,ret=0,data=1;" + output + s;
+            if (map.size() > 15) {
+                if (map[0] == "68") {
+                    //698
+                    if (map[14] == "85" and map[15] == "01") {
+                        if (36 > map.size())
+                            continue;
+                        for (int i = 0; i < 36; ++i) {
+                            output += map[i];
+                        }
+//                        cout << output << endl;
 
-            strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
-            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
-                   len_server);
-            cout << "serial rec:" << rec << endl;
-            ti();
+                        string rec = "cmd=1001,ret=0,data=1;" + output + s;
+                        thread t3(&my::FuckTheCJ,this,rec);
+                        t3.detach();
+//                        strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
+//                        for (int i = 0; i < 10; ++i) {
+//                            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
+//                                   len_server);
+//                            cout << "serial rec:" << rec << endl;
+//                        }
+
+                        ti();
+                        map.erase(begin(map), begin(map) + 24);
+                        output.clear();
+                    }
+                    //376.2
+                    else {
+                        cout << "m1:" << map[1] << endl;
+                        cout << "m2:" << map[2] << endl;
+                        int len = (stoi(map[1], 0, 16)) + (stoi(map[2], 0, 16) << 8);
+                        cout << "len:" << len << endl;
+                        if (len>300)
+                        {
+                            cout<<"len to long !! erase:"<<map[0]<<endl;
+                            map.erase(begin(map));
+                        }
+                        if (len > map.size())
+                            continue;
+                        for (int i = 0; i < len; ++i) {
+                            output += map[i];
+                        }
+//                        cout << output << endl;
+                        string rec = "cmd=1001,ret=0,data=1;" + output + s;
+                        strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
+                        sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
+                               len_server);
+                        cout << "serial rec:" << rec << endl;
+                        ti();
+                        map.erase(begin(map), begin(map) + len - 1);output.clear();
+                    }
+
+                } else {
+                    while (map.size() > 10 && map[0] != "68") {
+                        cout<<"erase:"<<map[0]<<endl;
+                        map.erase(begin(map));
+                    }
+
+                }
+            }
+
+
         }
 
     }
@@ -228,6 +282,16 @@ string my::UDPClient(char *sendBuf) {
     //发送数据
     return s;
 
+}
+
+void my::FuckTheCJ(string rec) {
+    strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
+    for (int i = 0; i < 5; ++i) {
+        Sleep(1000);
+        sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
+               len_server);
+        cout << "serial rec:" << rec << endl;
+    }
 }
 
 int main() {
