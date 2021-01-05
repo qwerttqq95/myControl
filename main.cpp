@@ -26,7 +26,6 @@ void ti() {
 }
 
 my::my() {
-    cout << "init" << endl;
     hCom = CreateFile("\\\\.\\COM18",
                       GENERIC_READ | GENERIC_WRITE, //允许读和写
                       0, //独占方式
@@ -45,7 +44,7 @@ my::my() {
     TimeOuts.ReadTotalTimeoutConstant = 0;
     TimeOuts.WriteTotalTimeoutMultiplier = 500;
     TimeOuts.WriteTotalTimeoutConstant = 500;
-    SetCommTimeouts(hCom, &TimeOuts); //设置超时
+    SetCommTimeouts(hCom, &TimeOuts);
     DCB dcb;
     GetCommState(hCom, &dcb);
     dcb.BaudRate = 9600;
@@ -54,11 +53,8 @@ my::my() {
     dcb.StopBits = ONESTOPBIT;
     SetCommState(hCom, &dcb);
     PurgeComm(hCom, PURGE_TXCLEAR | PURGE_RXCLEAR);
-
     cout << "opened serial" << endl;
     UDPServer();
-
-
 }
 
 void my::mywrite(std::string text) {
@@ -74,7 +70,7 @@ void my::mywrite(std::string text) {
 }
 
 void my::myread() {
-    char str[1000];
+    char str[2000];
     DWORD wCount;//读取的字节数
     BOOL bReadStat;
     string output;
@@ -85,7 +81,7 @@ void my::myread() {
     s.push_back(a);
     s.push_back(b);
     while (1) {
-        bReadStat = ReadFile(hCom, str, 500, &wCount, NULL);
+        bReadStat = ReadFile(hCom, str, 2000, &wCount, NULL);
         if (!bReadStat) {
             cout << "读串口失败!";
             return;
@@ -94,74 +90,62 @@ void my::myread() {
             char temp[4] = {0};
             for (int i = 0; i < wCount; i++) {
                 sprintf(temp, "%02X", (BYTE) str[i]);
-//                output += temp;
                 map.push_back(temp);
             }
             if (map.size() > 15) {
+                cout << "map size: " << map.size() << endl;
+                cur:
                 if (map[0] == "68") {
                     //698
-                    if (map[14] == "85" and map[15] == "01") {
+                    if (map[14] == "85" and map[15] == "01" and map[1] == "22" and map[4] == "05") {
                         if (36 > map.size())
                             continue;
                         for (int i = 0; i < 36; ++i) {
                             output += map[i];
                         }
-//                        cout << output << endl;
-
                         string rec = "cmd=1001,ret=0,data=1;" + output + s;
-                        thread t3(&my::FuckTheCJ,this,rec);
+                        thread t3(&my::FuckTheCJ, this, rec);
                         t3.detach();
-//                        strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
-//                        for (int i = 0; i < 10; ++i) {
-//                            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
-//                                   len_server);
-//                            cout << "serial rec:" << rec << endl;
-//                        }
-
                         ti();
                         map.erase(begin(map), begin(map) + 24);
                         output.clear();
+                        goto cur;
                     }
                     //376.2
                     else {
-                        cout << "m1:" << map[1] << endl;
-                        cout << "m2:" << map[2] << endl;
                         int len = (stoi(map[1], 0, 16)) + (stoi(map[2], 0, 16) << 8);
-                        cout << "len:" << len << endl;
-                        if (len>300)
-                        {
-                            cout<<"len to long !! erase:"<<map[0]<<endl;
+                        if (len > 260) {
+                            cout << "len to long !! erase:" << map[0] << endl;
                             map.erase(begin(map));
+                            goto cur;
                         }
                         if (len > map.size())
                             continue;
                         for (int i = 0; i < len; ++i) {
                             output += map[i];
                         }
-//                        cout << output << endl;
                         string rec = "cmd=1001,ret=0,data=1;" + output + s;
                         strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
-                        sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
+                        sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0,
+                               (SOCKADDR *) &addrClient_server,
                                len_server);
-                        cout << "serial rec:" << rec << endl;
+                        cout << "serial rec:" << rec << "\n";
                         ti();
-                        map.erase(begin(map), begin(map) + len - 1);output.clear();
+                        map.erase(begin(map), begin(map) + len);
+                        output.clear();
+                        goto cur;
                     }
-
                 } else {
-                    while (map.size() > 10 && map[0] != "68") {
-                        cout<<"erase:"<<map[0]<<endl;
+                    while (map.size() > 15 && map[0] != "68") {
+                        cout << "erase:" << map[0] << endl;
                         map.erase(begin(map));
                     }
-
+                    if (map[0] == "68")
+                        goto cur;
                 }
             }
-
-
         }
-
     }
-
 }
 
 void my::UDPServer() {
@@ -186,21 +170,14 @@ void my::UDPServer() {
     printf("server is operating!\n\n");
     //创建用于监听的套接字
     sockSrv_server = socket(AF_INET, SOCK_DGRAM, 0);//失败会返回 INVALID_SOCKET
-//    printf("Failed. Error Code : %d", WSAGetLastError());//显示错误信息
 
     SOCKADDR_IN addrSrv;     //定义sockSrv发送和接收数据包的地址
     addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
     addrSrv.sin_family = AF_INET;
     addrSrv.sin_port = htons(10002);
-
-    //绑定套接字, 绑定到端口
     bind(sockSrv_server, (SOCKADDR *) &addrSrv, sizeof(SOCKADDR));//会返回一个SOCKET_ERROR
-    //将套接字设为监听模式， 准备接收客户请求
 
     len_server = sizeof(SOCKADDR);
-//    char recvBuf[1000];    //收
-//    char sendBuf[1000];    //发
-//    char tempBuf[1000];    //存储中间信息数据
     char a = 0x0d;
     char b = 0x0a;
     string s;
@@ -221,7 +198,7 @@ void my::UDPServer() {
         string recvBuf_s = recvBuf;
 
         if (recvBuf_s.find("cmd=1001,data=1;0;") == 0) {
-            cout << "into serial" << endl;
+//            cout << "into serial" << endl;
             string cut = recvBuf_s.substr(18);
             this->mywrite(cut);
         } else {
@@ -287,7 +264,7 @@ string my::UDPClient(char *sendBuf) {
 void my::FuckTheCJ(string rec) {
     strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
     for (int i = 0; i < 5; ++i) {
-        Sleep(1000);
+        Sleep(700);
         sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                len_server);
         cout << "serial rec:" << rec << endl;
@@ -296,8 +273,6 @@ void my::FuckTheCJ(string rec) {
 
 int main() {
     my *a = new my();
-
-
 }
 
 //cmd=1001,ret=0,data=1;682200C30506060200010000CD29850100F10002000109074C5931303236360000CE0616");
