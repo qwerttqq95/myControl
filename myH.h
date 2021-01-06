@@ -10,7 +10,7 @@
 #include <string>
 #include <cstring>
 #include "vector"
-
+#include "fstream"
 class my {
 public:
     my();
@@ -23,6 +23,8 @@ public:
 
     void FuckTheCJ(std::string);
 
+    void write(std::string temp);
+
     std::string UDPClient(char *);
 
     HANDLE hCom;
@@ -32,6 +34,7 @@ public:
     SOCKADDR_IN addrClient_server;   //用来接收客户端的地址信息
     SOCKET sockSrv_server;
     int len_server;
+//    std::ofstream outfile;
 };
 
 #endif //UNTITLED1_MYH_H
