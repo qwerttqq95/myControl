@@ -12,7 +12,11 @@
 #include "vector"
 #include "fstream"
 #include "map"
+#include "mutex"
 
+std::mutex mtx_UDPClientToServer;
+std::mutex mtx_UDPServerToClient;
+std::mutex mtx_SerialToUDPServer;
 
 std::vector<std::string> UDPClientToServer;
 std::vector<std::string> UDPServerToClient;
@@ -37,6 +41,9 @@ public:
 class UDP_Server {
 public:
     UDP_Server();
+
+    void CheckFromToUDPServer();
+
     char sendBuf_server[1000];
     SOCKET sockSrv_server;
     int len_server;
@@ -46,31 +53,6 @@ public:
 class UDP_Client {
 public:
     UDP_Client();
-};
-
-class my {
-public:
-    my();
-
-    void mywrite(std::string);
-
-    void myread();
-
-    void UDPServer();
-
-    void FuckTheCJ(std::string);
-
-    void write(std::string temp);
-
-    std::string UDPClient(char *);
-
-    HANDLE hCom;
-    BYTE lpOutBuffer[1500] = {0};
-    DWORD nApduLen;
-    char sendBuf_server[1000];
-    SOCKADDR_IN addrClient_server;   //用来接收客户端的地址信息
-    SOCKET sockSrv_server;
-    int len_server;
 };
 
 #endif //UNTITLED1_MYH_H
