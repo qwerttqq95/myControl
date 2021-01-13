@@ -20,8 +20,6 @@ std::mutex mtx_SerialToUDPServer;
 
 std::vector<std::string> UDPClientToServer;
 std::vector<std::string> UDPServerToClient;
-
-std::vector<std::string> UDPServerToSerial;
 std::vector<std::string> SerialToUDPServer;
 
 

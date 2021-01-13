@@ -14,10 +14,14 @@ void StringToHex(string str, unsigned char *buff) {
     int z = 0;
     for (int i = 0; i < (str.length() / 2); i++) {
         string temp = str.substr(z, 2);
-//        cout<<"temp:"<<temp<<endl;
         buff[j++] = stoi(temp, 0, 16);
         z += 2;
     }
+}
+
+void mySleep(int msec){
+    clock_t now = clock();
+    while(clock()-now < msec);
 }
 
 void ti() {
@@ -29,7 +33,6 @@ void ti() {
 }
 
 vector<MultiSerial *> serial_prt;
-vector<int> serial_map;
 
 MultiSerial::MultiSerial(const std::string &num, const std::string &com) : MultiNum(num) {
     string temp = "\\\\.\\COM" + com;
@@ -102,12 +105,12 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             output += map[i];
                         }
                         string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
-                        for (int i = 0; i < 5; ++i) {
+                        for (int i = 0; i < 10; ++i) {
                             mtx_SerialToUDPServer.lock();
                             SerialToUDPServer.emplace_back(rec);
                             mtx_SerialToUDPServer.unlock();
                         }
-                        cout << "SerialToUDPServer: " << rec;
+//                        cout << "SerialToUDPServer: " << rec;
                         ti();
                         map.erase(begin(map), begin(map) + 24);
                         output.clear();
@@ -115,7 +118,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                     }
                         //376.2
                     else {
-                        cout << "376.2\n";
+//                        cout << "376.2\n";
                         int len = (stoi(map[1], 0, 16)) + (stoi(map[2], 0, 16) << 8);
                         if (len > 260) {
                             cout << "len to long !! erase:" << map[0] << endl;
@@ -132,7 +135,6 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         mtx_SerialToUDPServer.lock();
                         SerialToUDPServer.emplace_back(rec);
                         mtx_SerialToUDPServer.unlock();
-                        cout << "SerialToUDPServer: " << rec;
                         ti();
                         map.erase(begin(map), begin(map) + len);
                         output.clear();
@@ -221,8 +223,8 @@ UDP_Server::UDP_Server() {
 
         } else {
             if (recvBuf_s.find("cmd=0104") == 0) {
-                sleep(1);
                 cout << "\n-------------UDPClient--------------" << endl;
+                cout << "From CJ rec:" << recvBuf_s << endl;
                 rec = "cmd=0104,ret=0,data=null" + s;
                 cout << "UDPClient rec(fake) " << rec << endl;
                 strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
@@ -245,7 +247,7 @@ void UDP_Server::CheckFromToUDPServer() {
         mtx_UDPClientToServer.lock();
         while (!UDPClientToServer.empty()) {
             string rec = UDPClientToServer[0];
-            cout << "UDPClientToServer " << UDPClientToServer[0] << endl;
+            cout << "UDPClientToServer: " << UDPClientToServer[0] << endl;
             strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
             sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                    len_server);
@@ -255,7 +257,7 @@ void UDP_Server::CheckFromToUDPServer() {
         mtx_SerialToUDPServer.lock();
         while (!SerialToUDPServer.empty()) {
             string rec = SerialToUDPServer[0];
-            cout << "SerialToUDPServer " << SerialToUDPServer[0] << endl;
+            cout << "SerialToUDPServer: " << SerialToUDPServer[0] << endl;
             strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
             sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                    len_server);
@@ -270,7 +272,7 @@ UDP_Client::UDP_Client() {
     WORD wVersionRequested;
     WSADATA wsaData;
     int err;
-    char recvBuf[1000] = {0};
+
     wVersionRequested = MAKEWORD(1, 1);
     err = WSAStartup(wVersionRequested, &wsaData);
     if (err != 0) {
@@ -291,17 +293,18 @@ UDP_Client::UDP_Client() {
     addrSrv.sin_family = AF_INET;
     addrSrv.sin_port = htons(10001);
 
-    struct timeval timeout = {3, 0};
+    struct timeval timeout = {2, 0};
     setsockopt(sockSrv, SOL_SOCKET, SO_RCVTIMEO, (const char *) &timeout, sizeof(timeout));
     cout << "UDP Client is ready\n";
     int len = sizeof(SOCKADDR);
     //等待并数据
     while (true) {
         sleep(1);
+        char recvBuf[1000] = {0};
         mtx_SerialToUDPServer.lock();
         while (!UDPServerToClient.empty()) {
             string rec = UDPServerToClient[0];
-            cout << "SerialToUDPServer " << UDPServerToClient[0] << endl;
+            cout << "UDPServerToClient: " << UDPServerToClient[0] << endl;
             sendto(sockSrv, rec.c_str(), strlen(rec.c_str()) + 1, 0,
                    (SOCKADDR *) &addrSrv, len);
             UDPServerToClient.erase(UDPServerToClient.begin(), UDPServerToClient.begin() + 1);
@@ -333,9 +336,7 @@ void ThreadUDPC() {
 
 int main() {
     thread t1(ThreadUDPC);
-
     t1.detach();
-
 
     map<string, string> serial_list;
     serial_list.insert(pair<string, string>("1", "34"));
@@ -357,12 +358,10 @@ int main() {
     for (int i = 1; i <= serial_list.size(); ++i) {
         auto start = new MultiSerial(to_string(i), serial_list.at(to_string(i)));
         serial_prt.emplace_back(start);
-        serial_map.emplace_back(i);
         std::thread t(start->MultiRead, start);
         t.detach();
-//        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    cout << "Done\n";
+    cout << "Serial prepared...\n";
     thread t2(ThreadUDPS);
     t2.join();
 
