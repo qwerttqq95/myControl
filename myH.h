@@ -13,14 +13,15 @@
 #include "fstream"
 #include "map"
 #include "mutex"
+#include "deque"
 
 std::mutex mtx_UDPClientToServer;
 std::mutex mtx_UDPServerToClient;
 std::mutex mtx_SerialToUDPServer;
 
-std::vector<std::string> UDPClientToServer;
-std::vector<std::string> UDPServerToClient;
-std::vector<std::string> SerialToUDPServer;
+std::deque<std::string> UDPClientToServer;
+std::deque<std::string> UDPServerToClient;
+std::deque<std::string> SerialToUDPServer;
 
 
 class MultiSerial {
