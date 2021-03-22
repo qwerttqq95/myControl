@@ -9,6 +9,16 @@ using namespace std;
 
 #pragma comment(lib, "Ws2_32.lib")
 
+enum Mstyle {
+    P645 = 0,
+    P376_1,
+    P698,
+    PNone,
+    P376_2,
+};
+
+Mstyle flags = Mstyle::P645;
+
 void StringToHex(string str, unsigned char *buff) {
     int j = 0;
     int z = 0;
@@ -45,18 +55,18 @@ MultiSerial::MultiSerial(const std::string &num, const std::string &com) : Multi
     string temp = "\\\\.\\COM" + com;
     LPCSTR s = temp.data();
     MultihCom = CreateFile(s,
-                           GENERIC_READ | GENERIC_WRITE, //允许读和写
-                           0, //独占方式
+                           GENERIC_READ | GENERIC_WRITE,
+                           0,
                            NULL,
-                           OPEN_EXISTING, //打开而不是创建
-                           0, //同步方式
+                           OPEN_EXISTING,
+                           0,
                            NULL);
     if (MultihCom == (HANDLE) -1) {
         cout << com << " open fail!\n";
         return;
     }
-    SetupComm(MultihCom, 2048, 2048); //输入缓冲区和输出缓冲区的大小都是1024
-    COMMTIMEOUTS TimeOuts; //设定读超时
+    SetupComm(MultihCom, 2048, 2048);
+    COMMTIMEOUTS TimeOuts;
     TimeOuts.ReadIntervalTimeout = MAXDWORD;
     TimeOuts.ReadTotalTimeoutMultiplier = 0;
     TimeOuts.ReadTotalTimeoutConstant = 0;
@@ -79,7 +89,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
         return;
     }
     char str[2000];
-    DWORD wCount;//读取的字节数
+    DWORD wCount;//
     BOOL bReadStat;
     string output;
     vector<string> map;
@@ -89,7 +99,6 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
     s.push_back(a);
     s.push_back(b);
     while (true) {
-        sleep(1);
         bReadStat = ReadFile(ptr->MultihCom, str, 2000, &wCount, NULL);
         if (!bReadStat) {
             cout << "Pos: " << ptr->MultiNum << " read failed!\n";
@@ -111,14 +120,15 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         for (int i = 0; i < 36; ++i) {
                             output += map[i];
                         }
-                        string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
-                        for (int i = 0; i < 5; ++i) {
-                            mySleep(1000);
-                            mtx_SerialToUDPServer.lock();
-                            SerialToUDPServer.emplace_back(rec);
-                            mtx_SerialToUDPServer.unlock();
+                        if (flags == Mstyle::P698) {
+                            string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
+                            for (int i = 0; i < 5; ++i) {
+                                mtx_SerialToUDPServer.lock();
+                                SerialToUDPServer.emplace_back(rec);
+                                mtx_SerialToUDPServer.unlock();
+                                mySleep(1000);
+                            }
                         }
-//                        cout << "SerialToUDPServer: " << rec;
                         ti();
                         map.erase(begin(map), begin(map) + 24);
                         output.clear();
@@ -144,8 +154,8 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         }
                         if (len > map.size())
                             continue;
-                        cout << "len: " << len << endl;
-                        cout << "map.size: " << map.size() << endl;
+//                        cout << "len: " << len << endl;
+//                        cout << "map.size: " << map.size() << endl;
                         if (map[len - 1] != "16") {
                             cout << "Detective message error!\n";
                             //AFN
@@ -190,15 +200,17 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         for (int i = 0; i < len; ++i) {
                             output += map[i];
                         }
-                        string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
-                        mtx_SerialToUDPServer.lock();
-                        SerialToUDPServer.emplace_back(rec);
-                        mtx_SerialToUDPServer.unlock();
-
+                        if (flags == Mstyle::P376_2) {
+                            string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
+                            mtx_SerialToUDPServer.lock();
+                            SerialToUDPServer.emplace_back(rec);
+                            mtx_SerialToUDPServer.unlock();
+                        }
                         map.erase(begin(map), begin(map) + len);
                         output.clear();
                         goto cur;
                     }
+
                 } else {
                     while (map.size() > 15 && map[0] != "68") {
                         cout << "erase:" << map[0] << endl;
@@ -209,6 +221,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                 }
             }
         }
+        sleep(1);
     }
 }
 
@@ -260,11 +273,12 @@ UDP_Server::UDP_Server() {
     thread t(&UDP_Server::CheckFromToUDPServer, this);
     t.detach();
     while (true) {
-        sleep(1);
         char recvBuf[2000] = {0};
         recvfrom(sockSrv_server, recvBuf, 2000, 0, (SOCKADDR *) &addrClient_server, &len_server);
-        if (recvBuf[0] == 0)
+        if (recvBuf[0] == 0) {
+            sleep(1);
             continue;
+        }
         string recvBuf_s = recvBuf;
         regex e("cmd=1001,data=.+;0;");
         smatch m;
@@ -277,10 +291,41 @@ UDP_Server::UDP_Server() {
             string MeterPosition = m2.str(0).substr(5);
             int n = atoi(MeterPosition.c_str());
             serial_prt[n - 1]->MuliWrite(m2.suffix().str().substr(3));
+            cout << "\n-------------UDPClient--------------" << endl;
+            cout << "ServerToSerial :" << recvBuf_s << endl;
+
         } else {
             if (recvBuf_s.find("cmd=0104") == 0) {
                 cout << "\n-------------UDPClient--------------" << endl;
                 cout << "From CJ rec:" << recvBuf_s << endl;
+                char Mstyle_ = recvBuf_s[16];
+                string s1;
+                s1.push_back(Mstyle_);
+                int n = atoi(s1.c_str());
+                switch (n) {
+                    case 0: {
+                        flags = Mstyle::P645;
+                        cout << "P645\n";
+                    }
+                        break;
+                    case 1: {
+                        flags = Mstyle::P376_1;
+                        cout << "P376\n";
+                    }
+                        break;
+                    case 2: {
+                        flags = Mstyle::P698;
+                        cout << "P698\n";
+                    }
+                        break;
+                    case 4: {
+                        flags = Mstyle::P376_2;
+                        cout << "P376_2\n";
+                    }
+                    default:
+                        cout << "Invalid!!!";
+                }
+
                 rec = "cmd=0104,ret=0,data=null" + s;
                 cout << "UDPClient rec(fake): " << rec << endl;
                 strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
@@ -299,7 +344,8 @@ UDP_Server::UDP_Server() {
 
 void UDP_Server::CheckFromToUDPServer() {
     while (true) {
-        sleep(1);
+//        sleep(1);
+        mySleep(500);
         mtx_UDPClientToServer.lock();
         while (!UDPClientToServer.empty()) {
             string rec = UDPClientToServer[0];
@@ -357,7 +403,7 @@ UDP_Client::UDP_Client() {
     int len = sizeof(SOCKADDR);
     //等待并数据
     while (true) {
-        sleep(1);
+
         char recvBuf[1000] = {0};
         mtx_SerialToUDPServer.lock();
         while (!UDPServerToClient.empty()) {
@@ -371,6 +417,7 @@ UDP_Client::UDP_Client() {
 
         recvfrom(sockSrv, recvBuf, 1000, 0, (SOCKADDR *) &addrSrv, &len);
         if (recvBuf[0] == 0) {
+            sleep(1);
             continue;
         }
         string s = recvBuf;
@@ -397,22 +444,22 @@ int main() {
     t1.detach();
 
     map<string, string> serial_list;
-    serial_list.insert(pair<string, string>("1", "18"));
-    serial_list.insert(pair<string, string>("2", "19"));
-    serial_list.insert(pair<string, string>("3", "20"));
-    serial_list.insert(pair<string, string>("4", "21"));
-    serial_list.insert(pair<string, string>("5", "22"));
-    serial_list.insert(pair<string, string>("6", "23"));
-    serial_list.insert(pair<string, string>("7", "24"));
-    serial_list.insert(pair<string, string>("8", "25"));
-    serial_list.insert(pair<string, string>("9", "26"));
-    serial_list.insert(pair<string, string>("10", "27"));
-    serial_list.insert(pair<string, string>("11", "28"));
-    serial_list.insert(pair<string, string>("12", "29"));
-    serial_list.insert(pair<string, string>("13", "30"));
-    serial_list.insert(pair<string, string>("14", "31"));
-    serial_list.insert(pair<string, string>("15", "32"));
-    serial_list.insert(pair<string, string>("16", "33"));
+    serial_list.insert(pair<string, string>("1", "34"));
+//    serial_list.insert(pair<string, string>("2", "19"));
+//    serial_list.insert(pair<string, string>("3", "20"));
+//    serial_list.insert(pair<string, string>("4", "21"));
+//    serial_list.insert(pair<string, string>("5", "22"));
+//    serial_list.insert(pair<string, string>("6", "23"));
+//    serial_list.insert(pair<string, string>("7", "24"));
+//    serial_list.insert(pair<string, string>("8", "25"));
+//    serial_list.insert(pair<string, string>("9", "26"));
+//    serial_list.insert(pair<string, string>("10", "27"));
+//    serial_list.insert(pair<string, string>("11", "28"));
+//    serial_list.insert(pair<string, string>("12", "29"));
+//    serial_list.insert(pair<string, string>("13", "30"));
+//    serial_list.insert(pair<string, string>("14", "31"));
+//    serial_list.insert(pair<string, string>("15", "32"));
+//    serial_list.insert(pair<string, string>("16", "33"));
     for (int i = 1; i <= serial_list.size(); ++i) {
         auto start = new MultiSerial(to_string(i), serial_list.at(to_string(i)));
         serial_prt.emplace_back(start);
