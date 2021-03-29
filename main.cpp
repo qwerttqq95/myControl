@@ -18,6 +18,7 @@ enum Mstyle {
 
 Mstyle flags = Mstyle::P698;
 
+
 void StringToHex(string str, unsigned char *buff) {
     int j = 0;
     int z = 0;
@@ -60,7 +61,7 @@ MultiSerial::MultiSerial(const std::string &num, const std::string &com) : Multi
                            OPEN_EXISTING,
                            0,
                            NULL);
-    if (MultihCom == (HANDLE) - 1) {
+    if (MultihCom == (HANDLE) -1) {
         cout << com << " open fail!\n";
         return;
     }
@@ -83,8 +84,9 @@ MultiSerial::MultiSerial(const std::string &num, const std::string &com) : Multi
     cout << "COM" << com << " Prepared..." << endl;
 }
 
+
 void MultiSerial::MultiRead(MultiSerial *ptr) {
-    if (ptr == (HANDLE) - 1) {
+    if (ptr == (HANDLE) -1) {
         return;
     }
     char str[2000];
@@ -119,6 +121,8 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         for (int i = 0; i < 36; ++i) {
                             output += map[i];
                         }
+                        int len698 = 2 + (stoi(map[1], nullptr, 16)) + (stoi(map[2], nullptr, 16) << 8);
+
                         if (flags == Mstyle::P698) {
                             string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
                             for (int i = 0; i < 2; ++i) {
@@ -129,7 +133,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             }
                         }
                         ti();
-                        map.erase(begin(map), begin(map) + 24);
+                        map.erase(begin(map), begin(map) + len698);
                         output.clear();
                         goto cur;
                     }
@@ -158,8 +162,8 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             cout << "Detective message error! not end with 16\n";
                             write("not end with 16");
                             string save;
-                            for (auto & i : map) {
-                                save+=i;
+                            for (auto &i : map) {
+                                save += i;
                             }
                             write(save);
                             write("----save----");
@@ -169,45 +173,45 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             }
                             write("----erase----");
                             goto cur;
-                  /*          //AFN
-//                            if (map[10] == "03") {
-//                                if (map[1] != "0F") {
-//                                    cout << "AFN = 03,change message len...\n";
-//                                    map[1] = "0F";
-//                                    map[2] = "00";
-//                                } else {
-//                                    cout << "AFN = 03,change message end into 16...\n";
-//                                    map[len - 1] = "16";
-//                                }
-//                                goto cur;
-//                            }
-//                            if (map[10] == "10") {
-//                                if (map[1] != "12") {
-//                                    cout << "AFN = 10,change message len...\n";
-//                                    map[1] = "12";
-//                                    map[2] = "00";
-//                                } else {
-//                                    cout << "AFN = 10,change message end into 16...\n";
-//                                    map[len - 1] = "16";
-//                                }
-//                                goto cur;
-//                            }
-//                            if (map[10] == "11") {
-//                                if (map[1] != "17") {
-//                                    cout << "AFN = 11,change message len...\n";
-//                                    map[1] = "17";
-//                                    map[2] = "00";
-//                                } else {
-//                                    cout << "AFN = 10,change message end into 16...\n";
-//                                    map[len - 1] = "16";
-//                                }
-//                                goto cur;
-//                            } else {
-//                                map.erase(begin(map));
-//                                cout << "Don't know the way,erase 68...\n";
-//                                write("68");
-//                                goto cur;
-//                            }*/
+                            /*          //AFN
+          //                            if (map[10] == "03") {
+          //                                if (map[1] != "0F") {
+          //                                    cout << "AFN = 03,change message len...\n";
+          //                                    map[1] = "0F";
+          //                                    map[2] = "00";
+          //                                } else {
+          //                                    cout << "AFN = 03,change message end into 16...\n";
+          //                                    map[len - 1] = "16";
+          //                                }
+          //                                goto cur;
+          //                            }
+          //                            if (map[10] == "10") {
+          //                                if (map[1] != "12") {
+          //                                    cout << "AFN = 10,change message len...\n";
+          //                                    map[1] = "12";
+          //                                    map[2] = "00";
+          //                                } else {
+          //                                    cout << "AFN = 10,change message end into 16...\n";
+          //                                    map[len - 1] = "16";
+          //                                }
+          //                                goto cur;
+          //                            }
+          //                            if (map[10] == "11") {
+          //                                if (map[1] != "17") {
+          //                                    cout << "AFN = 11,change message len...\n";
+          //                                    map[1] = "17";
+          //                                    map[2] = "00";
+          //                                } else {
+          //                                    cout << "AFN = 10,change message end into 16...\n";
+          //                                    map[len - 1] = "16";
+          //                                }
+          //                                goto cur;
+          //                            } else {
+          //                                map.erase(begin(map));
+          //                                cout << "Don't know the way,erase 68...\n";
+          //                                write("68");
+          //                                goto cur;
+          //                            }*/
                         }
                         for (int i = 0; i < len; ++i) {
                             output += map[i];
@@ -285,7 +289,7 @@ UDP_Server::UDP_Server() {
     addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
     addrSrv.sin_family = AF_INET;
     addrSrv.sin_port = htons(10002);
-    bind(sockSrv_server, (SOCKADDR * ) & addrSrv, sizeof(SOCKADDR));//会返回一个SOCKET_ERROR
+    bind(sockSrv_server, (SOCKADDR *) &addrSrv, sizeof(SOCKADDR));//会返回一个SOCKET_ERROR
     cout << "UDP Server is ready...\n";
     len_server = sizeof(SOCKADDR);
     char a = 0x0d;
@@ -298,7 +302,7 @@ UDP_Server::UDP_Server() {
     t.detach();
     while (true) {
         char recvBuf[2000] = {0};
-        recvfrom(sockSrv_server, recvBuf, 2000, 0, (SOCKADDR * ) & addrClient_server, &len_server);
+        recvfrom(sockSrv_server, recvBuf, 2000, 0, (SOCKADDR *) &addrClient_server, &len_server);
         if (recvBuf[0] == 0) {
             sleep(1);
             continue;
@@ -354,7 +358,7 @@ UDP_Server::UDP_Server() {
                 rec = "cmd=0104,ret=0,data=null" + s;
                 cout << "UDPClient rec(fake): " << rec << endl;
                 strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
-                sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR * ) & addrClient_server,
+                sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                        len_server);
             } else {
                 cout << "\n-------------UDPClient--------------" << endl;//to UDP Client
@@ -376,7 +380,7 @@ void UDP_Server::CheckFromToUDPServer() {
             string rec = UDPClientToServer[0];
             cout << "UDPClientToServer: " << UDPClientToServer[0] << endl;
             strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
-            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR * ) & addrClient_server,
+            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                    len_server);
             UDPClientToServer.erase(UDPClientToServer.begin());
             ti();
@@ -387,7 +391,7 @@ void UDP_Server::CheckFromToUDPServer() {
             string rec = SerialToUDPServer[0];
             cout << "SerialToUDPServer: " << SerialToUDPServer[0] << endl;
             strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
-            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR * ) & addrClient_server,
+            sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                    len_server);
             SerialToUDPServer.erase(SerialToUDPServer.begin());
             ti();
@@ -396,6 +400,7 @@ void UDP_Server::CheckFromToUDPServer() {
 
     }
 }
+
 
 UDP_Client::UDP_Client() {
     WORD wVersionRequested;
@@ -435,12 +440,12 @@ UDP_Client::UDP_Client() {
             string rec = UDPServerToClient[0];
             cout << "UDPServerToClient: " << UDPServerToClient[0] << endl;
             sendto(sockSrv, rec.c_str(), strlen(rec.c_str()) + 1, 0,
-                   (SOCKADDR * ) & addrSrv, len);
+                   (SOCKADDR *) &addrSrv, len);
             UDPServerToClient.erase(UDPServerToClient.begin());
         }
         mtx_SerialToUDPServer.unlock();
 
-        recvfrom(sockSrv, recvBuf, 1000, 0, (SOCKADDR * ) & addrSrv, &len);
+        recvfrom(sockSrv, recvBuf, 1000, 0, (SOCKADDR *) &addrSrv, &len);
         if (recvBuf[0] == 0) {
             sleep(1);
             continue;
@@ -485,6 +490,7 @@ int main() {
 //    serial_list.insert(pair<string, string>("14", "31"));
 //    serial_list.insert(pair<string, string>("15", "32"));
 //    serial_list.insert(pair<string, string>("16", "33"));
+
     for (int i = 1; i <= serial_list.size(); ++i) {
         auto start = new MultiSerial(to_string(i), serial_list.at(to_string(i)));
         serial_prt.emplace_back(start);

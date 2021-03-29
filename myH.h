@@ -35,13 +35,17 @@ public:
     HANDLE MultihCom;
     std::string MultiNum;
     DWORD nApduLen;
+
 };
+
 
 class UDP_Server {
 public:
     UDP_Server();
 
     void CheckFromToUDPServer();
+
+
 
     char sendBuf_server[1000];
     SOCKET sockSrv_server;
