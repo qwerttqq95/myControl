@@ -16,8 +16,19 @@ enum Mstyle {
     P376_2,
 };
 
-Mstyle flags = Mstyle::P698;
+//Mstyle flags = Mstyle::P698;
+vector<Mstyle> flagsSum = {Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698,
+                           Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698,
+                           Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698};
 
+inline Mstyle checkStat(MultiSerial* prt){
+    std::string str = prt->MultiNum;
+    return flagsSum[atoi(str.c_str())-1];
+}
+
+inline void setStat(int n,Mstyle s){
+    flagsSum[n] = s;
+}
 
 void StringToHex(string str, unsigned char *buff) {
     int j = 0;
@@ -123,7 +134,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         }
                         int len698 = 2 + (stoi(map[1], nullptr, 16)) + (stoi(map[2], nullptr, 16) << 8);
 
-                        if (flags == Mstyle::P698) {
+                        if (checkStat(ptr) == Mstyle::P698) {
                             string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
                             for (int i = 0; i < 2; ++i) {
                                 mtx_SerialToUDPServer.lock();
@@ -216,7 +227,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                         for (int i = 0; i < len; ++i) {
                             output += map[i];
                         }
-                        if (flags == Mstyle::P376_2) {
+                        if (checkStat(ptr) == Mstyle::P376_2) {
                             string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
                             mtx_SerialToUDPServer.lock();
                             SerialToUDPServer.emplace_back(rec);
@@ -229,7 +240,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                                 write(*(begin(map)));
                                 map.erase(begin(map));
                             }
-                            write("--------");
+                            write("----erase above----");
                         };
                         output.clear();
                         goto cur;
@@ -330,24 +341,29 @@ UDP_Server::UDP_Server() {
                 string s1;
                 s1.push_back(Mstyle_);
                 int n = atoi(s1.c_str());
+
+                char Mpos = recvBuf_s[18];
+                string s2;
+                s2.push_back(Mpos);
+                int n2 = atoi(s2.c_str()) -1;
                 switch (n) {
                     case 0: {
-                        flags = Mstyle::P645;
+                        setStat(n2,Mstyle::P645);
                         cout << "P645\n";
                     }
                         break;
                     case 1: {
-                        flags = Mstyle::P376_1;
+                        setStat(n2,Mstyle::P376_1);
                         cout << "P376\n";
                     }
                         break;
                     case 2: {
-                        flags = Mstyle::P698;
+                        setStat(n2,Mstyle::P698);
                         cout << "P698\n";
                     }
                         break;
                     case 4: {
-                        flags = Mstyle::P376_2;
+                        setStat(n2,Mstyle::P376_2);
                         cout << "P376_2\n";
                     }
                         break;
@@ -475,12 +491,12 @@ int main() {
 
     map<string, string> serial_list;
     serial_list.insert(pair<string, string>("1", "34"));
-//    serial_list.insert(pair<string, string>("2", "19"));
-//    serial_list.insert(pair<string, string>("3", "20"));
-//    serial_list.insert(pair<string, string>("4", "21"));
-//    serial_list.insert(pair<string, string>("5", "22"));
-//    serial_list.insert(pair<string, string>("6", "23"));
-//    serial_list.insert(pair<string, string>("7", "24"));
+    serial_list.insert(pair<string, string>("2", "19"));
+    serial_list.insert(pair<string, string>("3", "20"));
+    serial_list.insert(pair<string, string>("4", "21"));
+    serial_list.insert(pair<string, string>("5", "22"));
+    serial_list.insert(pair<string, string>("6", "23"));
+    serial_list.insert(pair<string, string>("7", "24"));
 //    serial_list.insert(pair<string, string>("8", "25"));
 //    serial_list.insert(pair<string, string>("9", "26"));
 //    serial_list.insert(pair<string, string>("10", "27"));

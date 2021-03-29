@@ -36,6 +36,7 @@ public:
     std::string MultiNum;
     DWORD nApduLen;
 
+
 };
 
 
@@ -44,8 +45,6 @@ public:
     UDP_Server();
 
     void CheckFromToUDPServer();
-
-
 
     char sendBuf_server[1000];
     SOCKET sockSrv_server;
@@ -57,5 +56,6 @@ class UDP_Client {
 public:
     UDP_Client();
 };
+
 
 #endif //UNTITLED1_MYH_H
