@@ -5,7 +5,6 @@
 #include <zconf.h>
 
 using namespace std;
-
 #pragma comment(lib, "Ws2_32.lib")
 
 enum Mstyle {
@@ -16,17 +15,16 @@ enum Mstyle {
     P376_2,
 };
 
-//Mstyle flags = Mstyle::P698;
 vector<Mstyle> flagsSum = {Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698,
                            Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698,
                            Mstyle::P698, Mstyle::P698, Mstyle::P698, Mstyle::P698};
 
-inline Mstyle checkStat(MultiSerial* prt){
+inline Mstyle checkStat(MultiSerial *prt) {
     std::string str = prt->MultiNum;
-    return flagsSum[atoi(str.c_str())-1];
+    return flagsSum[atoi(str.c_str()) - 1];
 }
 
-inline void setStat(int n,Mstyle s){
+inline void setStat(int n, Mstyle s) {
     flagsSum[n] = s;
 }
 
@@ -59,6 +57,10 @@ void ti() {
     cout << ltm->tm_min << ":";
     cout << ltm->tm_sec << "\n------------------------------------------\n";
 }
+
+WSAEVENT g_hServerEvent;                                         //server 网络事件对象
+SOCKET g_sClient[WSA_MAXIMUM_WAIT_EVENTS] = {INVALID_SOCKET};  //client socket数组
+WSAEVENT g_event[WSA_MAXIMUM_WAIT_EVENTS];                     //网络事件对象数组
 
 vector<MultiSerial *> serial_prt;
 
@@ -111,6 +113,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
     s.push_back(a);
     s.push_back(b);
     while (true) {
+        Sleep(100);
         bReadStat = ReadFile(ptr->MultihCom, str, 2000, &wCount, NULL);
         if (!bReadStat) {
             cout << "Pos: " << ptr->MultiNum << " read failed!\n";
@@ -136,12 +139,15 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
 
                         if (checkStat(ptr) == Mstyle::P698) {
                             string rec = "cmd=1001,ret=0,data=" + ptr->MultiNum + ";" + output + s;
-                            for (int i = 0; i < 2; ++i) {
-                                mtx_SerialToUDPServer.lock();
-                                SerialToUDPServer.emplace_back(rec);
-                                mtx_SerialToUDPServer.unlock();
-                                mySleep(1000);
-                            }
+                            mtx_SerialToUDPServer.lock();
+                            SerialToUDPServer.emplace_back(rec);
+                            mtx_SerialToUDPServer.unlock();
+//                            for (int i = 0; i < 2; ++i) {
+//                                mtx_SerialToUDPServer.lock();
+//                                SerialToUDPServer.emplace_back(rec);
+//                                mtx_SerialToUDPServer.unlock();
+//                                mySleep(1000);
+//                            }
                         }
                         ti();
                         map.erase(begin(map), begin(map) + len698);
@@ -184,45 +190,6 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             }
                             write("----erase----");
                             goto cur;
-                            /*          //AFN
-          //                            if (map[10] == "03") {
-          //                                if (map[1] != "0F") {
-          //                                    cout << "AFN = 03,change message len...\n";
-          //                                    map[1] = "0F";
-          //                                    map[2] = "00";
-          //                                } else {
-          //                                    cout << "AFN = 03,change message end into 16...\n";
-          //                                    map[len - 1] = "16";
-          //                                }
-          //                                goto cur;
-          //                            }
-          //                            if (map[10] == "10") {
-          //                                if (map[1] != "12") {
-          //                                    cout << "AFN = 10,change message len...\n";
-          //                                    map[1] = "12";
-          //                                    map[2] = "00";
-          //                                } else {
-          //                                    cout << "AFN = 10,change message end into 16...\n";
-          //                                    map[len - 1] = "16";
-          //                                }
-          //                                goto cur;
-          //                            }
-          //                            if (map[10] == "11") {
-          //                                if (map[1] != "17") {
-          //                                    cout << "AFN = 11,change message len...\n";
-          //                                    map[1] = "17";
-          //                                    map[2] = "00";
-          //                                } else {
-          //                                    cout << "AFN = 10,change message end into 16...\n";
-          //                                    map[len - 1] = "16";
-          //                                }
-          //                                goto cur;
-          //                            } else {
-          //                                map.erase(begin(map));
-          //                                cout << "Don't know the way,erase 68...\n";
-          //                                write("68");
-          //                                goto cur;
-          //                            }*/
                         }
                         for (int i = 0; i < len; ++i) {
                             output += map[i];
@@ -241,7 +208,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                                 map.erase(begin(map));
                             }
                             write("----erase above----");
-                        };
+                        }
                         output.clear();
                         goto cur;
                     }
@@ -259,7 +226,6 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                 }
             }
         }
-        sleep(1);
     }
 
 }
@@ -296,6 +262,13 @@ UDP_Server::UDP_Server() {
     }
     //创建用于监听的套接字
     sockSrv_server = socket(AF_INET, SOCK_DGRAM, 0);//失败会返回 INVALID_SOCKET
+
+    //------------------------注册------------------------
+    g_hServerEvent = WSACreateEvent();                    //创建网络事件对象
+    WSAEventSelect(sockSrv_server, g_hServerEvent, FD_ACCEPT);//为server socket注册网络事件
+    WSANETWORKEVENTS networkEvents; //网络事件结构
+
+
     SOCKADDR_IN addrSrv;     //定义sockSrv发送和接收数据包的地址
     addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
     addrSrv.sin_family = AF_INET;
@@ -312,10 +285,10 @@ UDP_Server::UDP_Server() {
     thread t(&UDP_Server::CheckFromToUDPServer, this);
     t.detach();
     while (true) {
-        char recvBuf[2000] = {0};
-        recvfrom(sockSrv_server, recvBuf, 2000, 0, (SOCKADDR *) &addrClient_server, &len_server);
+        Sleep(100);
+        char recvBuf[1024] = {0};
+        recvfrom(sockSrv_server, recvBuf, 1024, 0, (SOCKADDR *) &addrClient_server, &len_server);
         if (recvBuf[0] == 0) {
-            sleep(1);
             continue;
         }
         string recvBuf_s = recvBuf;
@@ -334,50 +307,48 @@ UDP_Server::UDP_Server() {
             cout << "ServerToSerial :" << recvBuf_s << endl;
 
         } else {
-            if (recvBuf_s.find("cmd=0104") == 0) {
+            if (recvBuf_s.find("cmd=0104,data=0") == 0) {
                 cout << "\n-------------UDPClient--------------" << endl;
                 cout << "From CJ rec:" << recvBuf_s << endl;
                 char Mstyle_ = recvBuf_s[16];
                 string s1;
                 s1.push_back(Mstyle_);
                 int n = atoi(s1.c_str());
-
                 char Mpos = recvBuf_s[18];
                 string s2;
                 s2.push_back(Mpos);
-                int n2 = atoi(s2.c_str()) -1;
+                int n2 = atoi(s2.c_str()) - 1;
                 switch (n) {
                     case 0: {
-                        setStat(n2,Mstyle::P645);
+                        setStat(n2, Mstyle::P645);
                         cout << "P645\n";
                     }
                         break;
                     case 1: {
-                        setStat(n2,Mstyle::P376_1);
+                        setStat(n2, Mstyle::P376_1);
                         cout << "P376\n";
                     }
                         break;
                     case 2: {
-                        setStat(n2,Mstyle::P698);
+                        setStat(n2, Mstyle::P698);
                         cout << "P698\n";
                     }
                         break;
                     case 4: {
-                        setStat(n2,Mstyle::P376_2);
+                        setStat(n2, Mstyle::P376_2);
                         cout << "P376_2\n";
                     }
                         break;
                     default:
                         cout << "Invalid!!!";
                 }
-
                 rec = "cmd=0104,ret=0,data=null" + s;
                 cout << "UDPClient rec(fake): " << rec << endl;
                 strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
                 sendto(sockSrv_server, sendBuf_server, strlen(sendBuf_server), 0, (SOCKADDR *) &addrClient_server,
                        len_server);
             } else {
-                cout << "\n-------------UDPClient--------------" << endl;//to UDP Client
+                cout << "\n-------------to UDP Client--------------" << endl;//to UDP Client
                 mtx_UDPServerToClient.lock();
                 UDPServerToClient.emplace_back(recvBuf_s);
                 mtx_UDPServerToClient.unlock();
@@ -389,8 +360,7 @@ UDP_Server::UDP_Server() {
 
 void UDP_Server::CheckFromToUDPServer() {
     while (true) {
-//        sleep(1);
-        mySleep(500);
+        Sleep(100);
         mtx_UDPClientToServer.lock();
         while (!UDPClientToServer.empty()) {
             string rec = UDPClientToServer[0];
@@ -449,13 +419,13 @@ UDP_Client::UDP_Client() {
     int len = sizeof(SOCKADDR);
     //等待并数据
     while (true) {
-
+        Sleep(100);
         char recvBuf[1000] = {0};
         mtx_SerialToUDPServer.lock();
         while (!UDPServerToClient.empty()) {
             string rec = UDPServerToClient[0];
             cout << "UDPServerToClient: " << UDPServerToClient[0] << endl;
-            sendto(sockSrv, rec.c_str(), strlen(rec.c_str()) + 1, 0,
+            sendto(sockSrv, rec.c_str(), strlen(rec.c_str()) , 0,
                    (SOCKADDR *) &addrSrv, len);
             UDPServerToClient.erase(UDPServerToClient.begin());
         }
@@ -463,7 +433,6 @@ UDP_Client::UDP_Client() {
 
         recvfrom(sockSrv, recvBuf, 1000, 0, (SOCKADDR *) &addrSrv, &len);
         if (recvBuf[0] == 0) {
-            sleep(1);
             continue;
         }
         string s = recvBuf;
@@ -471,7 +440,6 @@ UDP_Client::UDP_Client() {
         UDPClientToServer.emplace_back(s);
         mtx_UDPClientToServer.unlock();
         recvBuf[0] = {0};
-
     }
 }
 
