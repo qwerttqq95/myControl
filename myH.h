@@ -46,6 +46,8 @@ public:
 
     void CheckFromToUDPServer();
 
+    void CheckFromUDPClient();
+
     char sendBuf_server[1000];
     SOCKET sockSrv_server;
     int len_server;

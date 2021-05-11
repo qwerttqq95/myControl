@@ -46,6 +46,12 @@ void mySleep(int msec) {
 void write(string temp) {
     ofstream outfile(R"(out.txt)", ios::app);
     outfile << temp;
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    outfile << endl;
+    outfile << ltm->tm_hour << ":";
+    outfile << ltm->tm_min << ":";
+    outfile << ltm->tm_sec << "\n";
     outfile << endl;
     outfile.close();
 }
@@ -113,7 +119,7 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
     s.push_back(a);
     s.push_back(b);
     while (true) {
-        Sleep(100);
+        Sleep(80);
         bReadStat = ReadFile(ptr->MultihCom, str, 2000, &wCount, NULL);
         if (!bReadStat) {
             cout << "Pos: " << ptr->MultiNum << " read failed!\n";
@@ -126,10 +132,10 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                 map.emplace_back(temp);
             }
             cur:
-            if (map.size() >= 16) {
+            if (map.size() >= 15) {
                 if (map[0] == "68") {
                     //698
-                    if (map[14] == "85" and map[15] == "01" and map[1] == "22" and map[4] == "05") {
+                    if (map[14] == "85" and map[1] == "22" and map[4] == "05") {
                         if (36 > map.size())
                             continue;
                         for (int i = 0; i < 36; ++i) {
@@ -171,24 +177,24 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             cout << "wrong message: " << output << endl;
                             output.clear();
                             cout << "len to long !! erase:" << map[0] << endl;
-                            write("len to long !! erase: " + map[0]);
+//                            write("len to long !! erase: " + map[0]);
                             map.erase(begin(map));
                             goto cur;
                         }
                         if (map[len - 1] != "16") {
                             cout << "Detective message error! not end with 16\n";
-                            write("not end with 16");
+//                            write("not end with 16");
                             string save;
                             for (auto &i : map) {
                                 save += i;
                             }
-                            write(save);
-                            write("----save----");
+//                            write(save);
+//                            write("----save----");
                             for (int i = 0; i < len; ++i) {
-                                write(*(begin(map)));
+//                                write(*(begin(map)));
                                 map.erase(begin(map));
                             }
-                            write("----erase----");
+//                            write("----erase----");
                             goto cur;
                         }
                         for (int i = 0; i < len; ++i) {
@@ -200,14 +206,14 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                             SerialToUDPServer.emplace_back(rec);
                             mtx_SerialToUDPServer.unlock();
                             write(output);
-                            write("-----");
+//                            write("-----");
                             map.erase(begin(map), begin(map) + len);
                         } else {
                             for (int i = 0; i < len; ++i) {
-                                write(*(begin(map)));
+//                                write(*(begin(map)));
                                 map.erase(begin(map));
                             }
-                            write("----erase above----");
+//                            write("----erase above----");
                         }
                         output.clear();
                         goto cur;
@@ -217,10 +223,10 @@ void MultiSerial::MultiRead(MultiSerial *ptr) {
                 } else {
                     while (map.size() > 15 && map[0] != "68") {
                         cout << "erase:" << map[0] << endl;
-                        write(*(begin(map)));
+//                        write(*(begin(map)));
                         map.erase(begin(map));
                     }
-                    write("----------");
+//                    write("----------");
                     if (map[0] == "68")
                         goto cur;
                 }
@@ -239,6 +245,7 @@ void MultiSerial::MuliWrite(std::string text) {
     BOOL bWriteStat;
     ClearCommError(MultihCom, &dwErrorFlags, &ComStat);
     bWriteStat = WriteFile(MultihCom, lpOutBuffer, nApduLen, &nApduLen, NULL);
+    write(text);
     if (!bWriteStat) { cout << "写串口失败!"; }
     lpOutBuffer[0] = {0};
 }
@@ -283,9 +290,11 @@ UDP_Server::UDP_Server() {
     s.push_back(b);
     string rec;
     thread t(&UDP_Server::CheckFromToUDPServer, this);
+    thread t2(&UDP_Server::CheckFromUDPClient, this);
     t.detach();
+    t2.detach();
     while (true) {
-        Sleep(100);
+        Sleep(80);
         char recvBuf[1024] = {0};
         recvfrom(sockSrv_server, recvBuf, 1024, 0, (SOCKADDR *) &addrClient_server, &len_server);
         if (recvBuf[0] == 0) {
@@ -358,11 +367,11 @@ UDP_Server::UDP_Server() {
     }
 }
 
-void UDP_Server::CheckFromToUDPServer() {
-    while (true) {
-        Sleep(100);
-        mtx_UDPClientToServer.lock();
+void UDP_Server::CheckFromUDPClient() {
+    while (1) {
+        Sleep(80);
         while (!UDPClientToServer.empty()) {
+            mtx_UDPClientToServer.lock();
             string rec = UDPClientToServer[0];
             cout << "UDPClientToServer: " << UDPClientToServer[0] << endl;
             strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
@@ -370,10 +379,16 @@ void UDP_Server::CheckFromToUDPServer() {
                    len_server);
             UDPClientToServer.erase(UDPClientToServer.begin());
             ti();
+            mtx_UDPClientToServer.unlock();
         }
-        mtx_UDPClientToServer.unlock();
-        mtx_SerialToUDPServer.lock();
+    }
+}
+
+void UDP_Server::CheckFromToUDPServer() {
+    while (true) {
+        Sleep(80);
         while (!SerialToUDPServer.empty()) {
+            mtx_SerialToUDPServer.lock();
             string rec = SerialToUDPServer[0];
             cout << "SerialToUDPServer: " << SerialToUDPServer[0] << endl;
             strncpy(sendBuf_server, rec.c_str(), rec.length() + 1);
@@ -381,12 +396,10 @@ void UDP_Server::CheckFromToUDPServer() {
                    len_server);
             SerialToUDPServer.erase(SerialToUDPServer.begin());
             ti();
+            mtx_SerialToUDPServer.unlock();
         }
-        mtx_SerialToUDPServer.unlock();
-
     }
 }
-
 
 UDP_Client::UDP_Client() {
     WORD wVersionRequested;
@@ -419,18 +432,17 @@ UDP_Client::UDP_Client() {
     int len = sizeof(SOCKADDR);
     //等待并数据
     while (true) {
-        Sleep(100);
+        Sleep(80);
         char recvBuf[1000] = {0};
-        mtx_SerialToUDPServer.lock();
         while (!UDPServerToClient.empty()) {
+            mtx_SerialToUDPServer.lock();
             string rec = UDPServerToClient[0];
             cout << "UDPServerToClient: " << UDPServerToClient[0] << endl;
-            sendto(sockSrv, rec.c_str(), strlen(rec.c_str()) , 0,
+            sendto(sockSrv, rec.c_str(), strlen(rec.c_str()), 0,
                    (SOCKADDR *) &addrSrv, len);
             UDPServerToClient.erase(UDPServerToClient.begin());
+            mtx_SerialToUDPServer.unlock();
         }
-        mtx_SerialToUDPServer.unlock();
-
         recvfrom(sockSrv, recvBuf, 1000, 0, (SOCKADDR *) &addrSrv, &len);
         if (recvBuf[0] == 0) {
             continue;
@@ -445,12 +457,10 @@ UDP_Client::UDP_Client() {
 
 void ThreadUDPS() {
     auto thread_s = new UDP_Server();
-
 }
 
 void ThreadUDPC() {
     auto thread_c = new UDP_Client();
-
 }
 
 int main() {
@@ -465,7 +475,7 @@ int main() {
     serial_list.insert(pair<string, string>("5", "22"));
     serial_list.insert(pair<string, string>("6", "23"));
     serial_list.insert(pair<string, string>("7", "24"));
-//    serial_list.insert(pair<string, string>("8", "25"));
+    serial_list.insert(pair<string, string>("8", "25"));
 //    serial_list.insert(pair<string, string>("9", "26"));
 //    serial_list.insert(pair<string, string>("10", "27"));
 //    serial_list.insert(pair<string, string>("11", "28"));
