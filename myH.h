@@ -32,9 +32,12 @@ public:
 
     static void MultiRead(MultiSerial *);
 
+    static void WriteWhile(MultiSerial *);
+
     HANDLE MultihCom;
     std::string MultiNum;
     DWORD nApduLen;
+    std::deque<std::string> WriteQue;
 
 
 };
@@ -57,6 +60,8 @@ public:
 class UDP_Client {
 public:
     UDP_Client();
+
+    void rec(SOCKET sockSrv,sockaddr_in addrSrv);
 };
 
 
